@@ -6,100 +6,170 @@
     <title>QueryIntel | SQL Intelligence Platform</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <nav>
-        <div class="logo">Query<span>Intel</span></div>
-        <div class="nav-links">
-            <button id="logout-btn" class="hidden">Logout</button>
-        </div>
-    </nav>
-
-    <main>
-        <!-- Onboarding Section -->
-        <section id="onboarding-section" class="card">
-            <h1>Welcome to QueryIntel</h1>
-            <p>Next-generation SQL observability and lineage.</p>
-            <div class="tabs">
-                <button class="tab-btn active" onclick="showTab('login')">Login</button>
-                <button class="tab-btn" onclick="showTab('register')">Register Company</button>
-            </div>
-            
-            <div id="login-form" class="tab-content">
-                <input type="text" id="api-token-input" placeholder="Enter API Token (sk_...)">
-                <button onclick="login()" class="primary-btn">Enter Dashboard</button>
-            </div>
-
-            <div id="register-form" class="tab-content hidden">
-                <input type="text" id="company-id" placeholder="Company ID (e.g. acme-corp)">
-                <input type="text" id="company-name" placeholder="Company Name">
-                <button onclick="register()" class="primary-btn">Register & Get Token</button>
-                <div id="registration-success" class="success-box hidden">
-                    <p>Copy your token (keep it safe!):</p>
-                    <code id="new-token-display"></code>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside id="sidebar-nav" class="sidebar hidden">
+            <div class="sidebar-logo">Query<span>Intel</span></div>
+            <nav class="nav-group">
+                <div class="nav-item active" onclick="switchView('dashboard')">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
                 </div>
+                <div class="nav-item" onclick="switchView('assets')">
+                    <i data-lucide="database"></i>
+                    <span>Asset Catalog</span>
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                <button onclick="logout()" class="nav-item" style="border:none; background:none; width: 100%;">
+                    <i data-lucide="log-out"></i>
+                    <span>Logout</span>
+                </button>
             </div>
-        </section>
+        </aside>
 
-        <!-- Dashboard Section -->
-        <section id="dashboard-section" class="hidden">
-            <header class="dashboard-header">
-                <h2>Query Performance Dashboard</h2>
-                <div class="stats-row">
-                    <div class="stat-card">
-                        <span class="label">Unique Queries</span>
-                        <span class="value" id="stat-unique-queries">0</span>
-                    </div>
-                    <div class="stat-card">
-                        <span class="label">Total Calls</span>
-                        <span class="value" id="stat-total-calls">0</span>
+        <!-- Main Content Area -->
+        <main class="content-area">
+            <!-- Onboarding / Login Experience -->
+            <section id="onboarding-section" class="card">
+                <h1>Query<span>Intel</span></h1>
+                <p>Enterprise SQL Observability & Lineage</p>
+                <div id="login-form">
+                    <input type="text" id="api-tenant-input" placeholder="Company ID (e.g. acme-corp)">
+                    <input type="text" id="api-token-input" placeholder="Enter API Token (sk_...)">
+                    <button onclick="login()" class="primary-btn">Enter Platform</button>
+                </div>
+                <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-secondary);">
+                    Don't have a tenant? <a href="#" onclick="showRegister()" style="color: var(--accent);">Register</a>
+                </div>
+            </section>
+
+            <!-- Dashboard View -->
+            <section id="dashboard-view" class="hidden">
+                <div class="view-header">
+                    <h2>Performance Intelligence</h2>
+                    <div class="view-actions">
+                        <span class="status-indicator">Worker: Live</span>
                     </div>
                 </div>
-            </header>
 
-            <div class="query-list-container card">
-                <h3>Detected Queries</h3>
-                <table id="query-table">
-                    <thead>
-                        <tr>
-                            <th>Hash</th>
-                            <th>Query Snippet</th>
-                            <th>Dialect</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="query-list">
-                        <!-- Filled by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
+                <!-- Stats Overview -->
+                <div class="stats-grid">
+                    <div class="stat-tile card">
+                        <span class="label">Detected Queries</span>
+                        <span id="stat-unique-queries" class="value">0</span>
+                    </div>
+                    <div class="stat-tile card">
+                        <span class="label">Total Schema Assets</span>
+                        <span id="stat-asset-count" class="value">0</span>
+                    </div>
+                    <div class="stat-tile card">
+                        <span class="label">Optimization Potential</span>
+                        <span id="stat-savings-potential" class="value">--</span>
+                    </div>
+                </div>
 
-        <!-- Query Detail / Lineage Modal -->
-        <div id="detail-modal" class="modal hidden">
-            <div class="modal-content card">
-                <span class="close" onclick="closeModal()">&times;</span>
+                <!-- Analytics Center -->
+                <div class="card chart-container">
+                    <h3>Query Activity (Last 24h)</h3>
+                    <canvas id="activityChart"></canvas>
+                </div>
+
+                <!-- Query Discovery -->
+                <div class="card">
+                    <h3>Discover Queries</h3>
+                    <div class="filter-bar">
+                        <input type="text" id="search-query" placeholder="🔍 Search query text..." oninput="fetchQueries()">
+                        <select id="filter-dialect" onchange="fetchQueries()">
+                            <option value="">All Dialects</option>
+                            <option value="postgres">PostgreSQL</option>
+                            <option value="snowflake">Snowflake</option>
+                            <option value="bigquery">BigQuery</option>
+                        </select>
+                    </div>
+                    <table class="table-container">
+                        <thead>
+                            <tr>
+                                <th>Query Hash</th>
+                                <th>Preview</th>
+                                <th>Dialect</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="query-list">
+                            <!-- Loaded via app.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Assets View -->
+            <section id="assets-view" class="hidden">
+                <div class="view-header">
+                    <h2>Asset Catalog</h2>
+                    <p>Synced structural metadata and DDL snapshots.</p>
+                </div>
+                <div class="card">
+                    <table class="table-container">
+                        <thead>
+                            <tr>
+                                <th>DB Alias</th>
+                                <th>Asset Name</th>
+                                <th>Type</th>
+                                <th>Version</th>
+                                <th>Last Synced</th>
+                            </tr>
+                        </thead>
+                        <tbody id="asset-list">
+                            <!-- Loaded via app.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Enhanced Detail Modal (Tabbed) -->
+    <div id="detail-modal" class="modal hidden">
+        <div class="modal-content card">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div class="modal-header">
                 <h2 id="modal-query-hash">Query Details</h2>
-                <pre id="modal-query-text" class="sql-code"></pre>
-                
-                <div class="detail-grid">
-                    <div class="lineage-box">
-                        <h3>Lineage / Assets</h3>
-                        <div id="lineage-graph">
-                            <!-- Visual lineage or list -->
-                        </div>
-                    </div>
-                    <div class="suggestions-box">
-                        <h3>AI Optimizations</h3>
-                        <div id="ai-suggestions" class="status-pending">
-                            Waiting for AI worker...
-                        </div>
-                    </div>
+                <div class="modal-tabs">
+                    <button id="tab-lineage" class="modal-tab-btn active" onclick="switchModalTab('lineage')">Lineage Mapping</button>
+                    <button id="tab-ai" class="modal-tab-btn" onclick="switchModalTab('ai')">AI Optimization</button>
+                    <button id="tab-sql" class="modal-tab-btn" onclick="switchModalTab('sql')">Full SQL</button>
                 </div>
             </div>
+
+            <!-- Tab: Lineage -->
+            <div id="modal-content-lineage" class="tab-panel">
+                <div id="lineage-graph" class="lineage-container">
+                    <!-- Dynamic Lineage Graph -->
+                </div>
+            </div>
+
+            <!-- Tab: AI -->
+            <div id="modal-content-ai" class="tab-panel hidden">
+                <div id="ai-suggestions-grid">
+                    <!-- Optimization cards -->
+                </div>
+            </div>
+
+            <!-- Tab: Full SQL -->
+            <div id="modal-content-sql" class="tab-panel hidden">
+                <pre id="modal-query-text" class="sql-banner"></pre>
+            </div>
         </div>
-    </main>
+    </div>
 
     <script src="app.js"></script>
+    <script>lucide.createIcons();</script>
 </body>
 </html>

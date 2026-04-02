@@ -9,27 +9,37 @@ class AIQueryOptimizer:
     def get_suggestions(sql: str) -> Dict:
         """
         Mock LLM optimization logic.
-        In production, this would call OpenAI/Anthropic/Local LLM.
+        Expanded to include cost estimation and savings potential.
         """
-        # Simulate LLM latency
-        # time.sleep(1) 
-        
         suggestions = {
             "performance_warnings": [],
             "optimized_query": sql,
-            "best_practices": []
+            "best_practices": [],
+            "estimated_cost": 0.0,
+            "savings_potential": 0.0
         }
         
         sql_upper = sql.upper()
         
+        # 1. Base Cost Calculation (Simulated)
+        # Calculate cost based on query complexity (JOINS, subqueries, etc.)
+        base_cost = 0.01  # $0.01 base per call
+        if "JOIN" in sql_upper: base_cost += 0.05
+        if "GROUP BY" in sql_upper: base_cost += 0.02
+        if "SELECT *" in sql_upper: base_cost += 0.10
+        
+        suggestions["estimated_cost"] = round(base_cost, 4)
+        
+        # 2. Optimization Analysis
         if "SELECT *" in sql_upper:
             suggestions["performance_warnings"].append("Explicitly list columns instead of using SELECT * to reduce I/O.")
+            suggestions["savings_potential"] += 0.80 # 80% reduction potential
         
-        if "WHERE" in sql_upper and "INDEX" not in sql_upper:
+        if "WHERE" in sql_upper:
             # Very naive mock check
             suggestions["best_practices"].append("Ensure columns in WHERE clause are indexed for better performance.")
             
-        if "JOIN" in sql_upper and "ON" in sql_upper:
+        if "JOIN" in sql_upper:
             suggestions["best_practices"].append("Check if JOIN columns have foreign key constraints and indexes.")
 
         return suggestions

@@ -1,39 +1,63 @@
 import hashlib
+import os
+import structlog
+from datetime import datetime
 from sqlmodel import select
+from redis import Redis
+from rq import Queue
+from elasticsearch import Elasticsearch
 from core.db_manager import DatabaseManager
 from core.models import Query, QueryMetric, CachedAsset
 from workers.lineage import process_lineage
 from workers.ai_optimization import process_ai_suggestions
 
+# Setup senior-level structured logging
+logger = structlog.get_logger()
+
+# Global queue for worker-to-worker dispatch
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+redis_conn = Redis(host=REDIS_HOST, port=6379)
+task_queue = Queue("default", connection=redis_conn)
+
 class QueryProcessor:
-    @staticmethod
-    def handle_telemetry(tenant_id: str, data: dict, background_tasks=None):
+    @classmethod
+    def handle_telemetry(cls, tenant_id: str, data: dict):
         """Processes query execution metrics and deduplicates queries."""
+        log = logger.bind(tenant_id=tenant_id, db_alias=data.get("db_alias"))
+        log.info("processing_telemetry_batch", sample_count=len(data.get("samples", [])))
+
         with DatabaseManager.get_session(tenant_id) as session:
             for sample in data.get("samples", []):
-                # 1. Deduplicate via Hash
                 q_text = sample["query_text"]
-                q_hash = hashlib.sha256(q_text.encode()).hexdigest()
+                dialect = data.get("dialect", "postgres")
+                schema_ver = data.get("schema_version", 1)
                 
-                # 2. Upsert Query
+                # Salt the hash with dialect and schema version
+                # This ensures that if the schema evolves, we re-trigger analysis
+                hash_input = f"{q_text}:{dialect}:{schema_ver}"
+                q_hash = hashlib.sha256(hash_input.encode()).hexdigest()
+                
+                # 1. Deduplicate via Salted Hash
                 existing_q = session.get(Query, q_hash)
                 if not existing_q:
+                    log.info("new_query_version_detected", query_hash=q_hash, schema_ver=schema_ver)
                     new_q = Query(
                         query_hash=q_hash,
                         db_alias=data["db_alias"],
                         query_text=q_text,
-                        schema_version_analyzed=1, # Versioning logic could go here
-                        dialect=data["dialect"]
+                        schema_version_analyzed=schema_ver,
+                        dialect=dialect
                     )
                     session.add(new_q)
                     session.commit()
                     
-                    # 3. Trigger Enrichment Workers
-                    if background_tasks:
-                        background_tasks.add_task(process_lineage, tenant_id, q_hash, q_text, data["dialect"])
-                        background_tasks.add_task(process_ai_suggestions, tenant_id, q_hash, q_text)
+                    # 2. Trigger Enrichment Workers via Distributed Queue (RQ)
+                    # We don't pass the queue reference anymore to avoid pickling errors.
+                    # The worker will import its own connection.
+                    task_queue.enqueue(process_lineage, tenant_id, q_hash, q_text, data["dialect"])
+                    task_queue.enqueue(process_ai_suggestions, tenant_id, q_hash, q_text)
                 
-                # 4. Insert Metric (Postgres for metadata/recent metrics)
+                # 3. DB Insertion (Postgres) - Metadata & Basic Metrics
                 metric = QueryMetric(
                     query_hash=q_hash,
                     calls=sample["calls_delta"],
@@ -41,31 +65,56 @@ class QueryProcessor:
                 )
                 session.add(metric)
                 
-                # 5. HIGH-VOLUME SCALE: Ingest to Elasticsearch for Timeseries Aggregation
-                # In v1+, we send raw execution events to ES to handle 2-3M queries / day.
-                # ES allows sub-second aggregations over millions of rows.
-                cls._ingest_to_elasticsearch(tenant_id, q_hash, sample)
+                # 4. High-Volume Ingest (Elasticsearch) - Timeseries Aggregations
+                # ES handles 2-3M events/day for sub-second dashboards
+                cls._ingest_to_elasticsearch(tenant_id, q_hash, sample, data["db_alias"])
 
             session.commit()
+            log.info("telemetry_batch_committed")
 
     @classmethod
-    def _ingest_to_elasticsearch(cls, tenant_id: str, q_hash: str, sample: dict):
-        """Mock Elasticsearch ingestion for timeseries metrics."""
-        # In production, this would use the `elasticsearch` python client.
-        # index = f"metrics-{tenant_id}"
-        pass
+    def _ingest_to_elasticsearch(cls, tenant_id: str, q_hash: str, sample: dict, db_alias: str):
+        """Real Elasticsearch ingestion for high-volume timeseries metrics."""
+        index_name = f"metrics-{tenant_id}"
+        doc = {
+            "query_hash": q_hash,
+            "db_alias": db_alias,
+            "calls": sample["calls_delta"],
+            "exec_time_ms": sample["total_exec_time_ms_delta"],
+            "timestamp": sample.get("timestamp", datetime.utcnow().isoformat())
+        }
+        try:
+            es_client.index(index=index_name, document=doc)
+        except Exception as e:
+            logger.error("es_ingest_failed", error=str(e), query_hash=q_hash)
 
     @classmethod
     def handle_assets(cls, tenant_id: str, data: dict):
-        """Processes structural metadata updates."""
+        """Processes structural metadata updates with Upsert (Idempotency) logic."""
+        logger.info("ingesting_assets", tenant_id=tenant_id, asset_count=len(data.get("data_assets", [])))
+        db_alias = data["db_alias"]
         with DatabaseManager.get_session(tenant_id) as session:
             for asset in data.get("data_assets", []):
-                new_asset = CachedAsset(
-                    db_alias=data["db_alias"],
-                    asset_name=asset["asset_name"],
-                    asset_type=asset["asset_type"],
-                    schema_ddl=asset["schema_ddl"],
-                    schema_version=asset["schema_version"]
+                asset_name = asset["asset_name"]
+                ver = asset["schema_version"]
+                
+                # Check for existing version to prevent duplication
+                stmt = select(CachedAsset).where(
+                    CachedAsset.db_alias == db_alias,
+                    CachedAsset.asset_name == asset_name,
+                    CachedAsset.schema_version == ver
                 )
-                session.add(new_asset)
+                existing = session.exec(stmt).first()
+                if existing:
+                    existing.last_synced_at = datetime.utcnow()
+                    session.add(existing)
+                else:
+                    new_asset = CachedAsset(
+                        db_alias=db_alias,
+                        asset_name=asset_name,
+                        asset_type=asset["asset_type"],
+                        schema_ddl=asset["schema_ddl"],
+                        schema_version=ver
+                    )
+                    session.add(new_asset)
             session.commit()

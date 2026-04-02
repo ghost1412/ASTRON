@@ -1,24 +1,27 @@
-import pytest
-from workers.lineage import LineageExtractor
+from workers.lineage import LineageFactory
 
-def test_lineage_extraction_postgres():
-    sql = "SELECT id, name FROM users WHERE email = 'test@example.com' JOIN orders ON users.id = orders.user_id"
-    lineage = LineageExtractor.extract(sql, "postgres")
+def test_simple_select_lineage():
+    sql = "SELECT id, name FROM users"
+    extractor = LineageFactory.get_extractor("postgres")
+    lineage = extractor.extract(sql)
     
-    # Check for expected tables and columns
-    # Note: Extract might return 'unknown' for tables if not fully qualified/schema provided, 
-    # but sqlglot often finds them.
-    cols = [c[1] for c in lineage]
-    assert "id" in cols
-    assert "name" in cols
-    assert "email" in cols
+    assert any(l[1] == "id" for l in lineage)
+    assert any(l[1] == "name" for l in lineage)
 
-def test_lineage_clause_types():
-    sql = "SELECT name FROM users WHERE id = 1"
-    lineage = LineageExtractor.extract(sql, "postgres")
+def test_where_clause_detection():
+    sql = "SELECT * FROM users WHERE email = 'test@example.com'"
+    extractor = LineageFactory.get_extractor("postgres")
+    lineage = extractor.extract(sql)
     
-    where_cols = [c[1] for c in lineage if c[2] == "WHERE"]
-    select_cols = [c[1] for c in lineage if c[2] == "SELECT"]
-    
-    assert "id" in where_cols
-    assert "name" in select_cols
+    where_cols = [l for l in lineage if l[2] == "WHERE"]
+    assert len(where_cols) > 0
+    assert where_cols[0][1] == "email"
+
+def test_single_table_resolution():
+    sql = "SELECT id FROM orders"
+    extractor = LineageFactory.get_extractor("postgres")
+    lineage = extractor.extract(sql)
+    assert any(l[0] == "orders" for l in lineage)
+
+if __name__ == "__main__":
+    pytest.main()

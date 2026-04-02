@@ -2,16 +2,20 @@ from datetime import datetime
 from typing import List, Optional, Dict
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship, JSON, Column
+from sqlmodel import SQLModel, Field, Relationship, JSON, Column, UniqueConstraint
 
-class Tenant(SQLModel, table=True):
-    __tablename__ = "tenants"
-    id: str = Field(primary_key=True)  # e.g., "acme-corp"
-    name: str
-    api_token: str = Field(index=True, unique=True)
+class TenantMetadata(SQLModel, table=True):
+    __tablename__ = "tenant_metadata"
+    company_id: str = Field(primary_key=True)
+    company_name: str
+    admin_email: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class CachedAsset(SQLModel, table=True):
     __tablename__ = "cached_assets"
+    __table_args__ = (
+        UniqueConstraint("db_alias", "asset_name", "schema_version", name="unique_asset_version"),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     db_alias: str
     asset_name: str
@@ -28,6 +32,7 @@ class Query(SQLModel, table=True):
     schema_version_analyzed: int
     dialect: str
     first_seen_at: datetime = Field(default_factory=datetime.utcnow)
+    last_seen_at: datetime = Field(default_factory=datetime.utcnow)
 
 class QueryMetric(SQLModel, table=True):
     __tablename__ = "query_metrics"
