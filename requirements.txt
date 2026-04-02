@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlmodel
+sqlglot
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+aiosqlite
+httpx
+pytest
+pytest-asyncio
