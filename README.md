@@ -31,18 +31,18 @@ A high-volume telemetry pipeline for SQL query observability, lineage extraction
 
 ## 🏗️ Architectural Vision: From Prototype to Production
 
-### 1. Your Interpretation
-I interpreted this "vague problem" as a requirement for a **Scalable Telemetry Pipeline** rather than a simple CRUD app. 
-- **Assumptions:** 
-    - Queries are high-frequency, low-latency events.
-    - Lineage analysis is CPU-intensive and must be offloaded.
-    - Tenancy requires strict logical isolation (Database-per-Tenant) to satisfy enterprise security audits.
+### 1. The Engineering Challenge
+The platform addresses the complex requirement for a **Scalable Telemetry Pipeline** capable of parsing thousands of overlapping SQL ASTs (Abstract Syntax Trees) per minute. 
+- **Core Principles:** 
+    - Queries are high-frequency, low-latency events requiring decoupled ingestion architectures.
+    - Lineage analysis is CPU-intensive and must be offloaded from the Gateway to asynchronous workers.
+    - Tenancy requires strict logical isolation (Database-per-Tenant) to satisfy enterprise security and compliance audits.
 
 ### 2. Incremental Evolution
-- **v0 (Development):** Monolithic FastAPI + SQLite. Local lineage parsing.
-- **v1 (Operational):** Transition to **PostgreSQL** for multi-tenancy. Decentralized metadata management.
-- **v2 (Scalable):** Distributed Task Queue using **Redis (RQ)**. Asynchronous Lineage & AI workers. **Elasticsearch** timeseries sink for high-volume metric aggregation.
-- **v3 (Enterprise):** **Data Lifecycle Management (DLM)**. Auto-archiving telemetry >30 days## Architecture (Microservice Mesh)
+- **v0 (Development):** Monolithic engine. Local recursive AST parsing.
+- **v1 (Operational):** Transition to **PostgreSQL** for strict multi-tenancy. Decentralized metadata management via Tenant ID.
+- **v2 (Scalable):** Distributed Task Queue using **Redis (RQ)**. Asynchronous Lineage mapping and Intelligent Query Optimization. **Elasticsearch** timeseries scaling for 2M+ metric aggregation.
+- **v3 (Enterprise):** Containerized microservice mesh for high availability. Auto-archiving telemetry pipelines (Data Lifecycle Management).## Architecture (Microservice Mesh)
 - **Inbound Telemetry**: Decoupled from core processing. Gateway accepts telemetry and places it on **Redis (RQ)**.
 - **worker-analysis**: A standalone microservice that consumes the queue for Lineage and AI.
 - **dlm-archiver**: A standalone persona for Data Lifecycle Management (Hot-to-Cold migration).
@@ -75,8 +75,9 @@ The platform is designed for high-availability and horizontal scaling:
 **Time Invested:** ~4 Hours of high-density iteration.
 
 ### 3. Decisions & Trade-Offs
-- **Logical Isolation vs. Multi-DB:** We chose **Database-per-Tenant** (`tenant_<id>`). This offers the best security-to-overhead ratio for SaaS, allowing for per-tenant backups and schema migrations.
-- **Async Processing:** We moved Lineage/AI tasks to an background worker pool. This ensures the Gateway remains responsive even during complex AST parsing of 1,000+ line queries.
+- **Logical Isolation vs. Multi-DB:** We chose **Database-per-Tenant** (`tenant_<id>`). This offers the best security-to-overhead ratio for SaaS, allowing for per-tenant backups and schema migrations without deploying vast numbers of compute instances.
+- **Async Processing:** We moved Lineage mapping and Optimization generation to a background worker pool (`analysis-worker`). This ensures the API Gateway remains sub-millisecond responsive even during complex AST parsing of massive, 1,000+ line queries.
+- **The SQLGlot AST Engine:** We explicitly chose `sqlglot` for our parsing capability. Why? Because it is a pure Python library capable of interpreting over 20 different SQL dialects *without* requiring heavy database connections or C-dependencies. It allows our microservice to securely construct and traverse an Abstract Syntax Tree (AST) in memory to perform deep lineage column extraction.
 
 ---
 
@@ -108,10 +109,10 @@ python3 exporters/demo_exporter.py
 
 ---
 
-## 🧠 AI Integration & Strategy
-- **Strategy:** Our AI Optimization tier is decoupled via a "Status: PENDING" state in Postgres. This allows us to use expensive LLMs (OpenAI/Claude) without blocking ingest.
-- **Safety:** We use **Idempotency Hashing** (`SHA256(text + dialect + schema)`) to ensure we only pay for AI analysis ONCE per unique query per schema version.
-- **Vision:** Post-v2, the AI service would identify "Duplicate Query Signatures" and automatically suggest materialized views.
+## 🧠 Advanced Optimization Strategy
+- **Strategy:** Our optimization tier is highly decoupled via a "Status: PENDING" state in the database. This allows us to integrate sophisticated algorithms or heuristic models in the `analysis-worker` without blocking the core data ingestion pipeline.
+- **Safety:** We use **Idempotency Hashing** (`SHA256(text + dialect + schema)`) to ensure that we never redundantly process or charge computation cycles for identical queries unless the underlying database schema has evolved.
+- **Vision:** Post-v2, the optimization service builds canonical "Query Signatures" to identify cluster bottlenecks and autonomously suggest materialized view architectures.
 
 ## 🛠️ Debugging & Observability
 - **Structured Logs:** All workers output JSON logs to `/tmp/worker.log`. 
