@@ -5,17 +5,18 @@ from datetime import datetime
 from sqlmodel import select
 from redis import Redis
 from rq import Queue
-from elasticsearch import Elasticsearch
 from core.db_manager import DatabaseManager
 from core.models import Query, QueryMetric, CachedAsset
 from workers.lineage import process_lineage
 from workers.ai_optimization import process_ai_suggestions
 
-# Setup senior-level structured logging
+# Setup structured logging
 logger = structlog.get_logger()
 
-# Global queue for worker-to-worker dispatch
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+ES_HOST = os.getenv("ELASTICSEARCH_URL", "http://elasticsearch:9200")
+import httpx
+
 redis_conn = Redis(host=REDIS_HOST, port=6379)
 task_queue = Queue("default", connection=redis_conn)
 
@@ -84,7 +85,8 @@ class QueryProcessor:
             "timestamp": sample.get("timestamp", datetime.utcnow().isoformat())
         }
         try:
-            es_client.index(index=index_name, document=doc)
+            res = httpx.post(f"{ES_HOST}/{index_name}/_doc", json=doc)
+            res.raise_for_status()
         except Exception as e:
             logger.error("es_ingest_failed", error=str(e), query_hash=q_hash)
 

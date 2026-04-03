@@ -3,173 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QueryIntel | SQL Intelligence Platform</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>ASTRON | SQL Query Intelligence Platform</title>
+    
+    <!-- Premium Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    
+    <!-- Feather Icons for Sleek UI -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    
+    <link rel="stylesheet" href="style.css?v=1.0.2-master-detail">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Sidebar Navigation -->
-        <aside id="sidebar-nav" class="sidebar hidden">
-            <div class="sidebar-logo">Query<span>Intel</span></div>
+    <div class="app-shell">
+        <!-- 1. Cinematic Glassmorphic Sidebar (Fixed Clickability) -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i data-feather="terminal"></i>
+                <span>ASTRON</span>
+            </div>
+            
             <nav class="nav-group">
-                <div class="nav-item active" onclick="switchView('dashboard')">
-                    <i data-lucide="layout-dashboard"></i>
-                    <span>Dashboard</span>
-                </div>
-                <div class="nav-item" onclick="switchView('assets')">
-                    <i data-lucide="database"></i>
-                    <span>Asset Catalog</span>
-                </div>
+                <a href="#" class="nav-link active" onclick="showDashboard()">
+                    <i data-feather="activity"></i>
+                    Neural Monitor
+                </a>
+                <!-- Future-Ready Sharded Modules (Pending Implementation Focus)
+                <a href="#" class="nav-link" onclick="showAssets()">
+                    <i data-feather="database"></i>
+                    Lineage Atlas
+                </a>
+                <a href="#" class="nav-link">
+                    <i data-feather="zap"></i>
+                    Optimization Hub
+                </a>
+                <a href="#" class="nav-link">
+                    <i data-feather="archive"></i>
+                    Cold Archive
+                </a>
+                -->
             </nav>
+            
             <div class="sidebar-footer">
-                <button onclick="logout()" class="nav-item" style="border:none; background:none; width: 100%;">
-                    <i data-lucide="log-out"></i>
-                    <span>Logout</span>
-                </button>
+                <div class="nav-link" onclick="logout()">
+                    <i data-feather="log-out"></i>
+                    Neural Logout
+                </div>
+                <div class="nav-link" style="margin-top: 0.5rem; opacity: 0.5;">
+                    <i data-feather="settings"></i>
+                    System Config
+                </div>
             </div>
         </aside>
 
-        <!-- Main Content Area -->
-        <main class="content-area">
-            <!-- Onboarding / Login Experience -->
-            <section id="onboarding-section" class="card">
-                <h1>Query<span>Intel</span></h1>
-                <p>Enterprise SQL Observability & Lineage</p>
-                <div id="login-form">
-                    <input type="text" id="api-tenant-input" placeholder="Company ID (e.g. acme-corp)">
-                    <input type="text" id="api-token-input" placeholder="Enter API Token (sk_...)">
-                    <button onclick="login()" class="primary-btn">Enter Platform</button>
+        <!-- 2. Master View Area -->
+        <main class="main-view">
+            <!-- Summary Insights -->
+            <section class="hero-stats animate-up">
+                <div class="glass-tile">
+                    <div class="tile-label">Total Queries</div>
+                    <div class="tile-value" id="stat-queries">0</div>
                 </div>
-                <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-secondary);">
-                    Don't have a tenant? <a href="#" onclick="showRegister()" style="color: var(--accent);">Register</a>
+                <div class="glass-tile">
+                    <div class="tile-label">Provisioned Instances</div>
+                    <div class="tile-value" id="stat-shards">3</div>
                 </div>
-            </section>
-
-            <!-- Dashboard View -->
-            <section id="dashboard-view" class="hidden">
-                <div class="view-header">
-                    <h2>Performance Intelligence</h2>
-                    <div class="view-actions">
-                        <span class="status-indicator">Worker: Live</span>
-                    </div>
+                <div class="glass-tile">
+                    <div class="tile-label">Lineage Nodes</div>
+                    <div class="tile-value" id="stat-lineage">0</div>
                 </div>
-
-                <!-- Stats Overview -->
-                <div class="stats-grid">
-                    <div class="stat-tile card">
-                        <span class="label">Detected Queries</span>
-                        <span id="stat-unique-queries" class="value">0</span>
-                    </div>
-                    <div class="stat-tile card">
-                        <span class="label">Total Schema Assets</span>
-                        <span id="stat-asset-count" class="value">0</span>
-                    </div>
-                    <div class="stat-tile card">
-                        <span class="label">Optimization Potential</span>
-                        <span id="stat-savings-potential" class="value">--</span>
-                    </div>
-                </div>
-
-                <!-- Analytics Center -->
-                <div class="card chart-container">
-                    <h3>Query Activity (Last 24h)</h3>
-                    <canvas id="activityChart"></canvas>
-                </div>
-
-                <!-- Query Discovery -->
-                <div class="card">
-                    <h3>Discover Queries</h3>
-                    <div class="filter-bar">
-                        <input type="text" id="search-query" placeholder="🔍 Search query text..." oninput="fetchQueries()">
-                        <select id="filter-dialect" onchange="fetchQueries()">
-                            <option value="">All Dialects</option>
-                            <option value="postgres">PostgreSQL</option>
-                            <option value="snowflake">Snowflake</option>
-                            <option value="bigquery">BigQuery</option>
-                        </select>
-                    </div>
-                    <table class="table-container">
-                        <thead>
-                            <tr>
-                                <th>Query Hash</th>
-                                <th>Preview</th>
-                                <th>Dialect</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="query-list">
-                            <!-- Loaded via app.js -->
-                        </tbody>
-                    </table>
+                <div class="glass-tile">
+                    <div class="tile-label">System Savings</div>
+                    <div class="tile-value">80%</div>
                 </div>
             </section>
 
-            <!-- Assets View -->
-            <section id="assets-view" class="hidden">
-                <div class="view-header">
-                    <h2>Asset Catalog</h2>
-                    <p>Synced structural metadata and DDL snapshots.</p>
+            <!-- Expanded Wide Search Bar -->
+            <header class="filter-bar animate-up">
+                <div class="search-wrapper">
+                    <input type="text" placeholder="Search Query ASTRON Hash, Tables, or Dialect..." id="search-input">
                 </div>
-                <div class="card">
-                    <table class="table-container">
-                        <thead>
-                            <tr>
-                                <th>DB Alias</th>
-                                <th>Asset Name</th>
-                                <th>Type</th>
-                                <th>Version</th>
-                                <th>Last Synced</th>
-                            </tr>
-                        </thead>
-                        <tbody id="asset-list">
-                            <!-- Loaded via app.js -->
-                        </tbody>
-                    </table>
+                <button class="page-btn" onclick="fetchRecent()">
+                    <i data-feather="refresh-cw" style="width: 16px;"></i>
+                </button>
+            </header>
+
+            <!-- High-Density Intelligence Table -->
+            <section class="animate-up">
+                <table class="neural-table">
+                    <thead>
+                        <tr>
+                            <th>ASTRON Hash</th>
+                            <th>Query Sample</th>
+                            <th>Database</th>
+                            <th>Last Seen</th>
+                        </tr>
+                    </thead>
+                    <tbody id="intelligence-tbody">
+                        <!-- Rows injected by app.js -->
+                    </tbody>
+                </table>
+
+                <div class="pagination">
+                    <span id="page-indicator">Page 1 of 1</span>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="page-btn" id="prev-page" disabled onclick="changePage(-1)">Previous</button>
+                        <button class="page-btn" id="next-page" disabled onclick="changePage(1)">Next</button>
+                    </div>
                 </div>
             </section>
         </main>
+
+        <!-- 3. Cinematic Detail Drawer (Side-Panel) -->
+        <aside id="detail-drawer" class="detail-drawer">
+            <div class="drawer-close" id="close-drawer">
+                <i data-feather="x"></i>
+            </div>
+            <div id="drawer-content">
+                <p style="color: var(--text-muted); padding: 2rem;">Select a query to reveal ASTRON intelligence.</p>
+            </div>
+        </aside>
+
     </div>
 
-    <!-- Enhanced Detail Modal (Tabbed) -->
-    <div id="detail-modal" class="modal hidden">
-        <div class="modal-content card">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <div class="modal-header">
-                <h2 id="modal-query-hash">Query Details</h2>
-                <div class="modal-tabs">
-                    <button id="tab-lineage" class="modal-tab-btn active" onclick="switchModalTab('lineage')">Lineage Mapping</button>
-                    <button id="tab-ai" class="modal-tab-btn" onclick="switchModalTab('ai')">AI Optimization</button>
-                    <button id="tab-sql" class="modal-tab-btn" onclick="switchModalTab('sql')">Full SQL</button>
-                </div>
+    <!-- 4. ASTRON Gateway (Dedicated Session) -->
+    <div id="login-overlay" class="modal" style="z-index: 9999; position: fixed; inset: 0; background: var(--bg-dark-obsidian); display: flex; justify-content: center; align-items: center;">
+        <!-- Login Form -->
+        <div id="login-form-box" class="glass-tile" style="max-width: 400px; padding: 4rem 3rem; text-align: center; border-color: var(--neon-purple);">
+            <div class="brand">
+                <i data-feather="terminal" style="color: var(--neon-cyan)"></i>
+                <span style="letter-spacing: 0.1em;">ASTRON MONITOR</span>
             </div>
-
-            <!-- Tab: Lineage -->
-            <div id="modal-content-lineage" class="tab-panel">
-                <div id="lineage-graph" class="lineage-container">
-                    <!-- Dynamic Lineage Graph -->
-                </div>
+            <p style="color: var(--text-muted); margin-bottom: 2.25rem; line-height: 1.6;">Access your Decentralized Query Mesh and Advanced Intelligence.</p>
+            <div class="search-wrapper" style="margin-bottom: 1.25rem;">
+                <input type="text" id="login-tenant" placeholder="Enterprise ID (e.g. acme-1)">
             </div>
-
-            <!-- Tab: AI -->
-            <div id="modal-content-ai" class="tab-panel hidden">
-                <div id="ai-suggestions-grid">
-                    <!-- Optimization cards -->
-                </div>
+            <div class="search-wrapper" style="margin-bottom: 2.25rem;">
+                <input type="password" id="login-token" placeholder="API Access Token">
             </div>
+            <button class="page-btn primary-btn" style="width: 100%; font-weight: 800; padding: 1.25rem; margin-bottom: 1.5rem;" onclick="login()">Validate Enterprise Access</button>
+            <a href="#" style="color: var(--neon-cyan); font-size: 0.85rem; text-decoration: none; font-weight: 600;" onclick="showOnboarding()">New Organization? Provision Instance →</a>
+        </div>
 
-            <!-- Tab: Full SQL -->
-            <div id="modal-content-sql" class="tab-panel hidden">
-                <pre id="modal-query-text" class="sql-banner"></pre>
+        <!-- Onboarding Form (Hidden) -->
+        <div id="onboarding-form-box" class="glass-tile" style="display: none; max-width: 400px; padding: 4rem 3rem; text-align: center; border-color: var(--neon-cyan);">
+            <div class="brand" style="justify-content: center; margin-bottom: 2.25rem;">
+                <i data-feather="user-plus"></i>
+                <span style="letter-spacing: 0.1em;">PROVISION INSTANCE</span>
+            </div>
+            <p style="color: var(--text-muted); margin-bottom: 2.25rem; line-height: 1.6;">Provision your secure database instance and credentials instantly.</p>
+            <div class="search-wrapper" style="margin-bottom: 1.25rem;">
+                <input type="text" id="ob-tenant" placeholder="Instance ID (e.g. lab-prod)">
+            </div>
+            <div class="search-wrapper" style="margin-bottom: 2.25rem;">
+                <input type="text" id="ob-name" placeholder="Organization Legal Name">
+            </div>
+            <button id="ob-btn" class="page-btn primary-btn" style="width: 100%; font-weight: 800; padding: 1.25rem; margin-bottom: 1.5rem; background: var(--neon-cyan); border-color: var(--neon-cyan);" onclick="registerTenant()">Provision Secure Shard</button>
+            <a href="#" style="color: var(--text-muted); font-size: 0.85rem; text-decoration: none;" onclick="showLogin()">Back to Access Portal</a>
+            
+            <!-- Token Display Area -->
+            <div id="token-display" style="display: none; margin-top: 2rem; padding: 1.5rem; background: rgba(0,0,0,0.4); border-radius: 8px; text-align: left; border: 1px dashed var(--neon-cyan);">
+                <p style="font-size: 0.75rem; color: var(--neon-cyan); margin-bottom: 0.5rem; font-weight: 700;">API ACCESS TOKEN GENERATED:</p>
+                <code id="generated-token" style="font-family: 'JetBrains Mono'; font-size: 0.8rem; color: #fff; word-break: break-all;"></code>
+                <p style="font-size: 0.7rem; color: var(--text-muted); margin-top: 1rem;">Copy this credentials hash. It will not be shown again.</p>
             </div>
         </div>
     </div>
 
     <script src="app.js"></script>
-    <script>lucide.createIcons();</script>
+    <script>
+        feather.replace();
+        function showDashboard() { location.reload(); }
+    </script>
 </body>
 </html>

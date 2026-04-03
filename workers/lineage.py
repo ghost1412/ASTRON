@@ -51,7 +51,7 @@ class PostgresLineageExtractor(GenericLineageExtractor):
     pass
 
 class LineageFactory:
-    """Senior Design Pattern: Factory for dialect-aware processors."""
+    """Factory for dialect-aware processors."""
     _strategies = {
         "postgres": PostgresLineageExtractor,
     }

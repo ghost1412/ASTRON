@@ -28,7 +28,7 @@ class DataLifecycleManager:
         
         with self.db.get_session(self.tenant_id) as session:
             # 1. Identify older metrics
-            # Senior-level: Only fetch necessary columns for Parquet archival
+            # Only fetch necessary columns for Parquet archival
             query = select(QueryMetric).where(QueryMetric.timestamp < self.threshold).limit(10000)
             stale_metrics = session.exec(query).all()
             
@@ -45,7 +45,7 @@ class DataLifecycleManager:
             
             if s3_key:
                 # 4. Atomic Purge: Delete only verified archived records
-                # Senior-level: Use Bulk DELETE for performance
+                # Use Bulk DELETE for performance
                 metric_ids = [m.id for m in stale_metrics]
                 delete_stmt = delete(QueryMetric).where(QueryMetric.id.in_(metric_ids))
                 session.exec(delete_stmt)
@@ -74,6 +74,10 @@ class DataLifecycleManager:
                     logger.info("inactive_query_purge_complete", tenant=self.tenant_id, count=len(q_hashes))
 
 if __name__ == "__main__":
-    # Integration test snippet (to be called by cron/rq-scheduler)
-    dlm = DataLifecycleManager("test-company-1")
+    # In a microservice mesh, the persona is defined by the environment
+    active_tenant = os.getenv("ACTIVE_TENANT", "test-company-1")
+    logger.info("lifecycle_manager_persona_started", tenant=active_tenant)
+    
+    dlm = DataLifecycleManager(active_tenant)
     dlm.archive_hot_telemetry()
+    dlm.archive_inactive_queries()

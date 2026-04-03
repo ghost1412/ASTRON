@@ -8,6 +8,7 @@ class TenantMetadata(SQLModel, table=True):
     __tablename__ = "tenant_metadata"
     company_id: str = Field(primary_key=True)
     company_name: str
+    api_token: str
     admin_email: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

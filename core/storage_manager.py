@@ -44,7 +44,7 @@ class StorageManager:
 
         df = pd.DataFrame(data)
         
-        # Senior-level: Schema normalization for Parquet (UUIDs to strings)
+        # Schema normalization for Parquet (UUIDs to strings)
         for col in df.columns:
             if df[col].dtype == 'object':
                 df[col] = df[col].apply(lambda x: str(x) if x is not None else None)

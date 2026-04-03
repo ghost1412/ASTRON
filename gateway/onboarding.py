@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException
 from core.db_manager import DatabaseManager
 from core.models import TenantMetadata
 
-router = APIRouter(prefix="/v1/onboarding", tags=["Onboarding"])
+router = APIRouter(prefix="/onboarding", tags=["Onboarding"])
 
 @router.post("/register")
 def register_tenant(company_id: str, company_name: str):
@@ -29,7 +29,8 @@ def register_tenant(company_id: str, company_name: str):
         
         metadata = TenantMetadata(
             company_id=company_id, 
-            company_name=company_name
+            company_name=company_name,
+            api_token=token
         )
         session.add(metadata)
         session.commit()
