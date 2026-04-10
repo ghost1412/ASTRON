@@ -17,3 +17,9 @@ structlog
 redis
 rq
 psycopg2-binary
+scapy
+pyperclip
+python-stdnum
+
+
+

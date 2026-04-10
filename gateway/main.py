@@ -1,11 +1,15 @@
 import os
+import structlog
+from typing import Optional
 from fastapi import FastAPI, HTTPException, Header, Query as QueryParam
 from sqlmodel import select, func
 from gateway.onboarding import router as onboarding_router
 from gateway.telemetry import router as telemetry_router
 from gateway.errors import register_error_handlers
 from core.db_manager import DatabaseManager
-from core.models import Query, LineageColumn, QuerySuggestion, TenantMetadata
+from core.models import Query, LineageColumn, QuerySuggestion, TenantMetadata, NetworkThreat
+
+logger = structlog.get_logger()
 
 app = FastAPI(
     title="ASTRON | Advanced SQL Intelligence Platform",
@@ -68,11 +72,19 @@ def get_query_details(query_hash: str, x_tenant_id: str = Header(..., alias="X-T
             # Query for Suggestion
             suggest_res = session.exec(select(QuerySuggestion).where(QuerySuggestion.query_hash == query_hash)).first()
             
+            # Synthesis for Visual Observability: Generate Mermaid.js graph string
+            mermaid_lines = ["graph LR"]
+            for l in lineage_res:
+                mermaid_lines.append(f"  {l.asset_name} --> {l.column_name}")
+            mermaid_str = "\n".join(mermaid_lines)
+            
             return {
                 "lineage": [l.column_name for l in lineage_res],
                 "tables": list(set([l.asset_name for l in lineage_res])),
+                "mermaid_lineage": mermaid_str,
                 "suggestion": str(suggest_res.suggestions) if suggest_res else "Analyzing Shard Integrity..."
             }
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -96,6 +108,58 @@ def get_query_metrics(query_hash: str, x_tenant_id: str = Header(..., alias="X-T
     except Exception as e:
         # Fallback for fresh shards or index latency
         return {"metrics": []}
+
+@app.get("/v1/network/threats")
+def get_network_threats(
+    tenant_id: str = QueryParam(..., alias="tenant_id"),
+    limit: int = QueryParam(50, ge=1, le=100),
+    offset: int = QueryParam(0, ge=0),
+    threat_type: Optional[str] = QueryParam(None)
+):
+    """Neural Sentry Hub: Returns a paginated list of threats with optional behavioral filtering."""
+    try:
+        with DatabaseManager.get_session(tenant_id) as session:
+            # 1. High-Performance Scalar Count
+            count_stmt = select(func.count(NetworkThreat.id))
+            if threat_type:
+                count_stmt = count_stmt.where(NetworkThreat.threat_type == threat_type)
+            total_count = session.exec(count_stmt).one()
+
+            # 2. Paginated Selective Fetch
+            statement = select(NetworkThreat).order_by(NetworkThreat.timestamp.desc())
+            if threat_type:
+                statement = statement.where(NetworkThreat.threat_type == threat_type)
+            
+            threats = session.exec(statement.offset(offset).limit(limit)).all()
+            return {
+                "threats": [t.dict() for t in threats],
+                "total": total_count,
+                "limit": limit,
+                "offset": offset
+            }
+    except Exception as e:
+        logger.error("threat_fetch_failed", error=str(e))
+        return {"threats": [], "total": 0, "error": str(e)}
+
+
+
+
+@app.get("/v1/network/stats")
+def get_network_stats(tenant_id: str = QueryParam(..., alias="tenant_id")):
+    """Telemetry Plane: Returns global packet distribution and security trends."""
+    try:
+        with DatabaseManager.get_session(tenant_id) as session:
+            threat_count = session.exec(select(func.count(NetworkThreat.id))).one()
+            high_risk = session.exec(select(func.count(NetworkThreat.id)).where(NetworkThreat.risk_score > 0.8)).one()
+            return {
+                "active_sniffers": 1,
+                "scope": "ENTIRE_HOST",
+                "malware_detected": threat_count,
+                "high_risk_alerts": high_risk,
+                "health": "PROTECTED"
+            }
+    except Exception as e:
+        return {"active_sniffers": 0, "health": "DEGRADED"}
 
 # 3. Modular Ingestion Routers
 app.include_router(onboarding_router, prefix="/v1")

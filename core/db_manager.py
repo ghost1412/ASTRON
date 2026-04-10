@@ -7,8 +7,11 @@ from sqlmodel import SQLModel, create_engine, Session, text
 logger = structlog.get_logger()
 _db_lock = threading.Lock()
 
-# Central config for Postgres - targeting 'postgres' host for Docker mesh
-PG_BASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password@postgres:5432")
+# Central config for Postgres
+PG_BASE_URL = os.getenv("DATABASE_URL")
+if not PG_BASE_URL:
+    raise ValueError("DATABASE_URL environment variable is NOT set. Please copy .env.example to .env and configure your secrets.")
+
 USE_SQLITE = os.getenv("USE_SQLITE", "false").lower() == "true"
 
 class DatabaseManager:

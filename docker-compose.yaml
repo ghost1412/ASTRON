@@ -5,15 +5,15 @@ services:
     image: postgres:15-alpine
     container_name: query_intel_db
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: query_intel_master
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d query_intel_master"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,8 +45,8 @@ services:
     image: minio/minio:latest
     container_name: query_intel_cold_storage
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -65,9 +65,9 @@ services:
     expose:
       - "8000"
     environment:
-      - DATABASE_URL=postgresql://admin:password@postgres:5432
-      - REDIS_HOST=redis
-      - SHARD_COUNT=3
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_HOST=${REDIS_HOST}
+      - SHARD_COUNT=${SHARD_COUNT}
     volumes:
       - .:/app
     restart: always
@@ -103,10 +103,10 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      - REDIS_HOST=redis
-      - DATABASE_URL=postgresql://admin:password@postgres:5432
-      - ELATICSEARCH_URL=http://elasticsearch:9200
-      - SHARD_COUNT=3
+      - REDIS_HOST=${REDIS_HOST}
+      - DATABASE_URL=${DATABASE_URL}
+      - ELATICSEARCH_URL=${ELASTICSEARCH_URL}
+      - SHARD_COUNT=${SHARD_COUNT}
     volumes:
       - .:/app
     command: ["python3", "-m", "workers.worker"]
@@ -129,11 +129,26 @@ services:
       - postgres
       - minio
     environment:
-      - DATABASE_URL=postgresql://admin:password@postgres:5432
-      - ACTIVE_TENANT=test-company-1
+      - DATABASE_URL=${DATABASE_URL}
+      - ACTIVE_TENANT=${ACTIVE_TENANT}
     command: ["python3", "-m", "workers.archiver"]
     profiles:
       - utility
+
+  sentry-worker:
+    build: .
+    container_name: query_intel_sentry
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      - DATABASE_URL=${HOST_DATABASE_URL}
+      - ACTIVE_TENANT=${ACTIVE_TENANT}
+
+    command: ["python3", "-m", "workers.sentry"]
+    restart: always
+
 
 volumes:
   postgres_data:

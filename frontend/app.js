@@ -261,15 +261,49 @@ async function openDrawer(query) {
                     Optimization Path
                 </h3>
                 <p style="color: var(--text-primary); font-size: 0.85rem; line-height: 1.5;">
-                    ${details.suggestion}
+                    ${details.suggestions ? details.suggestions.best_practices.join('<br>') : 'Analyzing Shard Integrity...'}
                 </p>
+                
+                ${details.suggestions && details.suggestions.security_alerts.length > 0 ? `
+                   <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; font-size: 0.75rem; color: #ef4444;">
+                       <strong>Security Alert:</strong><br>${details.suggestions.security_alerts.join('<br>')}
+                   </div>
+                ` : ''}
+
+                ${details.suggestions && details.suggestions.maintainability_notes.length > 0 ? `
+                   <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(6, 182, 212, 0.1); border-left: 3px solid var(--neon-cyan); font-size: 0.75rem; color: var(--neon-cyan);">
+                       <strong>Maintainability:</strong><br>${details.suggestions.maintainability_notes.join('<br>')}
+                   </div>
+                ` : ''}
+            </div>
+
+
+            <!-- Visual Lineage (v4.0) -->
+            <div class="glass-tile" style="margin-bottom: 1rem;">
+                <h4 style="font-size: 0.75rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-feather="map" style="width: 12px; color: var(--neon-cyan)"></i>
+                    Visual Lineage Map
+                </h4>
+                <div id="mermaid-container" class="mermaid" style="background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem;">
+                    ${details.mermaid_lineage || 'graph LR\n  A[No Lineage detected]'}
+                </div>
             </div>
 
             <button id="opt-btn" class="page-btn primary-btn" style="width: 100%; border: none; background: var(--accent-gradient); font-weight: 800; padding: 1rem;" onclick="executeOptimization()">
                 EXECUTE OPTIMIZATION PLAN
             </button>
         `;
+        
+        // Dynamic Mermaid Auth
+        try {
+            mermaid.contentLoaded();
+            mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+        } catch (e) {
+            console.error("Mermaid Render Fail:", e);
+        }
+
         feather.replace();
+
     } catch (err) {
         content.innerHTML = `<p style="padding: 2rem; color: var(--neon-purple)">Gateway Latency Detected. Re-synchronizing...</p>`;
     }
@@ -309,11 +343,114 @@ function updatePaginationControls() {
     document.getElementById('next-page').disabled = currentPage >= totalPages;
 }
 
+// 4. Neural Sentry (v6.1) Hub Logic
+let sentryOffset = 0;
+const sentryLimit = 15;
+let currentSentryTab = 'all';
+
+async function switchSentryTab(type) {
+    currentSentryTab = type;
+    sentryOffset = 0;
+    
+    // Update UI Active State (v6.1 specific styles)
+    document.querySelectorAll('.nav-tab-btn').forEach(l => l.classList.remove('active-cyan'));
+    if (type === 'all') document.getElementById('tab-global').classList.add('active-cyan');
+    else document.getElementById('tab-local').classList.add('active-cyan');
+
+    await fetchNetworkThreats();
+}
+
+async function changeSentryPage(delta) {
+    const newOffset = sentryOffset + (delta * sentryLimit);
+    if (newOffset < 0) return;
+    sentryOffset = newOffset;
+    await fetchNetworkThreats();
+}
+
+async function fetchNetworkStats() {
+    const tenant = localStorage.getItem("astron_tenant");
+    try {
+        const res = await fetch(`${API_BASE}/network/stats?tenant_id=${tenant}`, { headers: getHeaders() });
+        const stats = await res.json();
+        
+        document.getElementById('sentry-threats').textContent = stats.malware_detected || 0;
+        document.getElementById('sentry-health').textContent = stats.health || "PROTECTED";
+        document.getElementById('sentry-health').style.color = stats.health === "PROTECTED" ? "var(--neon-emerald)" : "#ef4444";
+    } catch (err) {}
+}
+
+async function fetchNetworkThreats() {
+    const tenant = localStorage.getItem("astron_tenant");
+    const threatFilter = currentSentryTab === 'all' ? '' : `&threat_type=${currentSentryTab}`;
+    
+    try {
+        const res = await fetch(`${API_BASE}/network/threats?tenant_id=${tenant}&limit=${sentryLimit}&offset=${sentryOffset}${threatFilter}`, { headers: getHeaders() });
+        const { threats, total } = await res.json();
+        const tbody = document.getElementById('sentry-tbody');
+        tbody.innerHTML = '';
+
+        // Update Pagination Controls
+        const pageIndicator = document.getElementById('sentry-page-indicator');
+        if (pageIndicator) {
+            pageIndicator.textContent = `Page ${Math.floor(sentryOffset/sentryLimit) + 1} (Total: ${total})`;
+        }
+        document.getElementById('sentry-prev').disabled = sentryOffset === 0;
+        document.getElementById('sentry-next').disabled = (sentryOffset + sentryLimit) >= total;
+
+        if (!threats || threats.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 4rem; opacity: 0.5;">No active ${currentSentryTab === 'all' ? 'traffic' : 'leaks'} detected in this view.</td></tr>`;
+            return;
+        }
+
+        threats.forEach(t => {
+            const tr = document.createElement('tr');
+            const rowColor = t.threat_type === 'LOCAL_LEAK' ? 'var(--neon-emerald)' : 'var(--neon-cyan)';
+            const typeLabel = t.threat_type || 'TRAFFIC';
+            
+            tr.innerHTML = `
+                <td style="color: ${rowColor}">${t.protocol}</td>
+                <td style="color: var(--text-primary)">${t.source_ip}${t.port ? ':'+t.port : ''}</td>
+                <td><span style="background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem;">${typeLabel}</span></td>
+                <td style="font-size: 0.8rem; color: var(--text-muted); opacity: 0.9;">${t.summary}</td>
+                <td style="color: var(--neon-purple)">${(t.risk_score * 100).toFixed(0)}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Update Traffic Map (Mermaid) - Only if in Global view
+        if (currentSentryTab === 'all' && threats.length > 0) {
+            const entries = threats.slice(0, 5);
+            let mapDef = "graph LR\n  Scanner[Host Traffic] --- Sentry(Passive Sentry)\n";
+            entries.forEach(t => {
+                mapDef += `  Sentry -- ${t.threat_type} --> ${t.source_ip}\n`;
+            });
+            const mapContainer = document.getElementById('traffic-map');
+            if (mapContainer) {
+                try {
+                    mapContainer.innerHTML = mapDef;
+                    mapContainer.removeAttribute('data-processed');
+                    mermaid.init(undefined, mapContainer);
+                } catch (e) {
+                    console.warn("Traffic Map integration error (Handled)");
+                }
+            }
+        }
+    } catch (err) {}
+}
+
+
+
 // Global Initialization
 window.onload = () => {
     if (checkSession()) {
         fetchRecent();
         setInterval(fetchRecent, 20000);
+        setInterval(() => {
+            if (document.getElementById('sentry-view').style.display !== 'none') {
+                fetchNetworkStats();
+                fetchNetworkThreats();
+            }
+        }, 10000);
         
         // Add Filter Listener
         const searchInput = document.getElementById('search-input');
@@ -323,3 +460,4 @@ window.onload = () => {
     }
     feather.replace();
 }
+

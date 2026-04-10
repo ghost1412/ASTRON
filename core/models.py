@@ -29,11 +29,13 @@ class Query(SQLModel, table=True):
     __tablename__ = "queries"
     query_hash: str = Field(primary_key=True)  # hash(query_text + dialect + schema_version)
     db_alias: str
+    user_id: Optional[str] = Field(default=None, index=True)
     query_text: str
     schema_version_analyzed: int
     dialect: str
-    first_seen_at: datetime = Field(default_factory=datetime.utcnow)
+    first_seen_at: datetime = Field(default_factory=datetime.utcnow, index=True)
     last_seen_at: datetime = Field(default_factory=datetime.utcnow)
+
 
 class QueryMetric(SQLModel, table=True):
     __tablename__ = "query_metrics"
@@ -59,3 +61,17 @@ class QuerySuggestion(SQLModel, table=True):
     suggestions: Dict = Field(default_factory=dict, sa_column=Column(JSON))
     error: Optional[str] = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class NetworkThreat(SQLModel, table=True):
+    __tablename__ = "network_threats"
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
+    source_ip: str
+    dest_ip: str
+    protocol: str
+    port: int
+    threat_type: str  # 'MALWARE', 'ANOMALY', 'PORT_SCAN'
+    risk_score: float  # 0.0 to 1.0
+    summary: str
+    is_active: bool = Field(default=True)
+

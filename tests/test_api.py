@@ -24,10 +24,11 @@ def test_telemetry_bulk_ingest_no_auth():
     response = client.post("/v1/telemetry/queries/bulk", json=payload)
     assert response.status_code == 403
 
-def test_query_retrieval_empty():
-    """Verify retrieval returns empty list for new tenants."""
-    # Using the demo token logic mocked in get_current_tenant
+def test_query_filtering():
+    """Verify that retrieval filters (dialect, user_id) are accepted."""
     headers = {"Authorization": "Bearer sk_demo_token_123"}
-    response = client.get("/v1/telemetry/queries", headers=headers)
+    # The endpoint should accept these params even if no data matches yet
+    response = client.get("/v1/queries?dialect=postgres&user_id=u1", headers=headers)
     assert response.status_code == 200
     assert "data" in response.json()
+

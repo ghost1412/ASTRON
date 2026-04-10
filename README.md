@@ -8,6 +8,22 @@ A production-grade, multi-tenant SQL observability and lineage platform. Designe
 
 1.  **Stop Local Services**: Ensure no local Postgres (5432) or Redis (6379) are running on your host.
 2.  **Boot the Mesh**: 
+
+## 🖼️ Interface Highlights
+
+### 1. Neural Sentry Hub (Security Ops)
+The Sentry Hub provides a real-time view of all network traffic, including an interactive Mermaid-driven traffic map and the forensic threat registry.
+![Neural Sentry Dashboard](./assets/dashboard_sentry.png)
+
+### 2. Neural Monitor (Performance Ops)
+Track global query metrics, deduplicated hashes, and provisioned instance health across your entire decentralized infrastructure.
+![Neural Monitor Dashboard](./assets/dashboard_monitor.png)
+
+### 3. Discovery Hub (Lineage & Optimization)
+Drill down into specific queries to visualize SQL lineage, identify optimization paths, and analyze shard integrity.
+![Discovery Hub Modal](./assets/discovery_hub.png)
+
+---
     ```bash
     ./verify_platform.sh
     ```
@@ -24,12 +40,13 @@ A production-grade, multi-tenant SQL observability and lineage platform. Designe
 ---
 
 ## 🏛️ Architectural Overview
-A high-volume telemetry pipeline for SQL query observability, lineage extraction, and intelligent optimization. Designed for multi-tenancy with logical database isolation.
+A high-volume telemetry pipeline for SQL query observability, lineage extraction, and intelligent optimization. Persists comprehensive metadata (User ID, Dialect, Timestamps) with advanced multi-tenant filtering.
+
  10M+ queries per day using a distributed telemetry pipeline.
 
 ---
 
-## 🏗️ Architectural Vision: From Prototype to Production
+## 🏗️ Architectural Vision: Scaling to Enterprise
 
 ### 1. The Engineering Challenge
 The platform addresses the complex requirement for a **Scalable Telemetry Pipeline** capable of parsing thousands of overlapping SQL ASTs (Abstract Syntax Trees) per minute. 
@@ -41,10 +58,10 @@ The platform addresses the complex requirement for a **Scalable Telemetry Pipeli
 ### 2. Incremental Evolution
 - **v0 (Development):** Monolithic engine. Local recursive AST parsing.
 - **v1 (Operational):** Transition to **PostgreSQL** for strict multi-tenancy. Decentralized metadata management via Tenant ID.
-- **v2 (Scalable):** Distributed Task Queue using **Redis (RQ)**. Asynchronous Lineage mapping and Intelligent Query Optimization. **Elasticsearch** timeseries scaling for 2M+ metric aggregation.
+- **v2 (Scalable):** Distributed Task Queue using **Redis (RQ)**. Asynchronous Lineage mapping and Deterministic Query Optimization. **Elasticsearch** timeseries scaling for 2M+ metric aggregation.
 - **v3 (Enterprise):** Containerized microservice mesh for high availability. Auto-archiving telemetry pipelines (Data Lifecycle Management).## Architecture (Microservice Mesh)
 - **Inbound Telemetry**: Decoupled from core processing. Gateway accepts telemetry and places it on **Redis (RQ)**.
-- **worker-analysis**: A standalone microservice that consumes the queue for Lineage and AI.
+- **worker-analysis**: A standalone microservice that consumes the queue for Lineage and Optimization logic.
 - **dlm-archiver**: A standalone persona for Data Lifecycle Management (Hot-to-Cold migration).
 - **Multi-Tenancy**: Logical Database-Per-Tenant isolation via **PostgreSQL**.
 
@@ -71,10 +88,8 @@ The platform is designed for high-availability and horizontal scaling:
 
 ---
 
-**Submission Status:** v3 (Orchestrated Microservice Mesh)
-**Time Invested:** ~4 Hours of high-density iteration.
 
-### 3. Decisions & Trade-Offs
+## 🧩 Core Decisions & Trade-Offs
 - **Logical Isolation vs. Multi-DB:** We chose **Database-per-Tenant** (`tenant_<id>`). This offers the best security-to-overhead ratio for SaaS, allowing for per-tenant backups and schema migrations without deploying vast numbers of compute instances.
 - **Async Processing:** We moved Lineage mapping and Optimization generation to a background worker pool (`analysis-worker`). This ensures the API Gateway remains sub-millisecond responsive even during complex AST parsing of massive, 1,000+ line queries.
 - **The SQLGlot AST Engine:** We explicitly chose `sqlglot` for our parsing capability. Why? Because it is a pure Python library capable of interpreting over 20 different SQL dialects *without* requiring heavy database connections or C-dependencies. It allows our microservice to securely construct and traverse an Abstract Syntax Tree (AST) in memory to perform deep lineage column extraction.
@@ -120,6 +135,15 @@ python3 exporters/demo_exporter.py
 - **Retry Mechanism:** Failed jobs are moved to the RQ `failed` registry for manual or automated re-queuing.
 
 
+
+## 🛡️ Security & Privacy (v7.0)
+ASTRON is built with a **Privacy-First** architecture:
+- **Masked Signatures**: Only redacted forensic signatures (e.g., `XXXX-XXXX-1234`) are stored in the central registry.
+- **Passive Sniffing**: Zero-overhead network auditing that does not intercept application-level sensitive memory.
+- **Strict Mode**: Enable `ASTRON_STRICT_MODE` for professional-grade checksum validation of PII.
+
+## ⚖️ License
+Licensed under the [Apache License 2.0](LICENSE).
 
 ---
 **Author:** [Ashutosh]

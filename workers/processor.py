@@ -45,10 +45,12 @@ class QueryProcessor:
                     new_q = Query(
                         query_hash=q_hash,
                         db_alias=data["db_alias"],
+                        user_id=sample.get("user_id"),
                         query_text=q_text,
                         schema_version_analyzed=schema_ver,
                         dialect=dialect
                     )
+
                     session.add(new_q)
                     session.commit()
                     

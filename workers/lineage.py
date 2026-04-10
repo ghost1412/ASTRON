@@ -61,9 +61,18 @@ class LineageFactory:
         strategy_class = cls._strategies.get(dialect.lower(), GenericLineageExtractor)
         return strategy_class(dialect)
 
+import re
+
+def extract_columns_from_ddl(ddl: str) -> List[str]:
+    """Extract column names from simple CREATE TABLE DDL."""
+    # Matches words followed by a type definition, typically inside parentheses
+    # Very simplistic but effective for standard SQL challenge DDLs
+    # Example: "id INT", "name VARCHAR(255)"
+    cols = re.findall(r'^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+[a-zA-Z]', ddl, re.MULTILINE)
+    return [c.lower() for c in cols]
+
 def process_lineage(tenant_id: str, query_hash: str, sql: str, dialect: str):
-    """Worker task to extract and store lineage."""
-    # 1. Fetch Synced Schema (CachedAsset) to help resolve unqualified columns
+    """Worker task to extract and store lineage with Schema-Aware resolution."""
     from sqlmodel import select
     from core.models import CachedAsset
     
@@ -71,9 +80,8 @@ def process_lineage(tenant_id: str, query_hash: str, sql: str, dialect: str):
     with DatabaseManager.get_session(tenant_id) as session:
         assets = session.exec(select(CachedAsset)).all()
         for asset in assets:
-            # Simplistic parsing of DDL to get columns (In production, use a proper DDL parser)
-            # For now, we assume schema_ddl is available for lookup
-            schema_map[asset.asset_name] = asset.schema_ddl
+            # Context-Aware Extraction: Parse columns from the provided DDL
+            schema_map[asset.asset_name] = extract_columns_from_ddl(asset.schema_ddl)
 
     # 2. Extract Lineage using the Strategy-aware Factory
     extractor = LineageFactory.get_extractor(dialect)
@@ -83,12 +91,12 @@ def process_lineage(tenant_id: str, query_hash: str, sql: str, dialect: str):
         for table, col, clause in results:
             resolved_table = table
             
-            # Resolve 'unknown' tables by looking up column in synced schema
+            # 3. Intelligent Resolution: 
+            # If table is 'unknown', check if the column exists in exactly one synced asset
             if resolved_table == "unknown":
-                for asset_name, ddl in schema_map.items():
-                    if col.lower() in ddl.lower():
-                        resolved_table = asset_name
-                        break
+                candidates = [asset_name for asset_name, columns in schema_map.items() if col.lower() in columns]
+                if len(candidates) == 1:
+                    resolved_table = candidates[0]
 
             lineage_entry = LineageColumn(
                 query_hash=query_hash,
@@ -98,3 +106,4 @@ def process_lineage(tenant_id: str, query_hash: str, sql: str, dialect: str):
             )
             session.add(lineage_entry)
         session.commit()
+

@@ -26,7 +26,7 @@ ASTRON employs a professional, dual-layered database strategy to achieve both **
 - **Discovery Power**: Handles broad, cross-tenant trend analysis and high-volume metric ingestion (2-3M+ events/day).
 
 ### 3. Redis | The Orchestration Layer
-- **RQ Worker Sync**: Manages the priority-sharded task queues for the AI analysis workers.
+- **RQ Worker Sync**: Manages the priority-sharded task queues for analytical workers.
 - **Distributed Locks**: Prevents "Discovery Collisions" during massive schema re-syncs.
 - Minimal v0 structure to prioritize core ingestion first.
 
@@ -78,41 +78,28 @@ To ensure absolute tenant isolation, the platform moved from a "Master DB" to a 
 | Model | Purpose | Key Attributes |
 |---|---|---|
 | `TenantMetadata` | Multi-tenant identity storage | `company_id`, `company_name`, `admin_email` |
-| `Query` | Canonical query registry | `query_hash`, `query_text`, `dialect`, `db_alias` |
+| `Query` | Canonical query registry | `query_hash`, `query_text`, `dialect`, `db_alias`, `user_id` |
 | `QueryMetric` | Execution telemetry | `calls`, `total_exec_time_ms`, `timestamp` |
+
 | `LineageColumn` | Recursive AST analysis results | `asset_name`, `column_name`, `clause_type` |
-| `QuerySuggestion` | Intelligence & Optimization state | `status`, `suggestions`, `error` |
+| `QuerySuggestion` | Deterministic Optimization state | `status`, `suggestions`, `error` |
 
 ### API Specification (v1)
 
-- `POST /v1/onboarding/register`: Provisions a new isolated database shard for a tenant.
+- `GET /v1/onboarding/register`: Provisions a new isolated database shard for a tenant.
 - `GET /v1/stats`: Aggregates real-time metrics (Query count, Lineage nodes) from the tenant's shard.
+- `GET /v1/queries`: Retrieves queries with optional filters for `user_id`, `dialect`, and `timestamp` ranges.
 - `POST /v1/assets`: Ingests structural metadata (DDL) for lineage resolution.
+
 - `POST /v1/telemetry/queries/bulk`: High-volume ingestion with fair-share chunking.
 - `GET /v1/queries/{query_hash}`: Fetches deep-dive analysis including lineage and optimization.
 
-### System Feature: AI Optimization Strategy
-The platform utilizes an asynchronous optimization tier termed "Model Pluralism":
-1. **Model Strategy:** Implements a standard `AISuggestionEngine` protocol in `workers/ai_optimization.py`.
-2. **Parallel Dispatch:** The Redis Queue allows for "Fan-out" patterns where multiple analysis models can process the same query hash concurrently.
-3. **Generic Schema:** The `QuerySuggestion` model uses a discriminator to unify results from various intelligence engines (e.g., Performance, Security, Cost).
+### System Feature: Intelligent Optimization Strategy
+The platform utilizes an asynchronous optimization tier termed "Worker Pluralism":
+1. **Model Strategy:** Implements a standard `SuggestionEngine` protocol in `workers/processor.py`.
+2. **Parallel Dispatch:** The Redis Queue allows for "Fan-out" patterns where multiple analysis workers can process the same query hash concurrently.
+3. **Generic Schema:** The `QuerySuggestion` model uses a discriminator to unify results from various analytical engines (e.g., Performance, Security, Cost).
 
-
-## Use of AI Tools
-
-In the development of ASTRON, the AI agent was treated as a **junior developer pair-programming companion**. 
-
-**How they helped:**
-- **Task Offloading:** After initially discussing and thoroughly defining the system architecture, I was able to offload straightforward tasks, boilerplate generation, repetitive text creation, and writing documentations entirely to the agent.
-- **Infrastructure & Quality Assurance:** The agent was highly effective at taking the architectural contracts and helping define the `docker-compose.yaml` and `Dockerfile` configurations. It also assisted by generating load-testing scripts (`demo_exporter.py`) and defining test cases to validate the sharded ingestion.
-
-**How they hindered:**
-- **Context Loss in State Management:** The AI frequently struggled with the complex interplay between the Redis distributed task queues (RQ) and synchronous database sessions. It often suggested patterns that led to pickling errors or stale PostgreSQL sessions when moving across process boundaries.
-- **Dependency Collisions:** The AI occasionally assumed incorrect headers for the Elasticsearch client integration, requiring manual engineering to rip out the client and replace it with a barebones `httpx` payload to resolve the collisions.
-
-**Where suggestions were applied:**
-- **Frontend Architecture:** Because the backend contracts were explicitly defined upfront, the frontend UI (including the master-detail HTML layout and Javascript data binding) was entirely offloaded to and synthesized by the agent, freeing up time to focus on the mesh architecture.
 
 ---
-
-*Last updated: 2026-04-03*
+*Last updated: April 2026*

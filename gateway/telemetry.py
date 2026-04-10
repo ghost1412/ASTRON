@@ -1,4 +1,6 @@
+from datetime import datetime
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
 
@@ -29,6 +31,9 @@ def list_assets(tenant_id: str = Depends(get_current_tenant)):
 def list_queries(
     dialect: Optional[str] = None,
     db_alias: Optional[str] = None,
+    user_id: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
     limit: int = 50,
     offset: int = 0,
     tenant_id: str = Depends(get_current_tenant)
@@ -40,9 +45,16 @@ def list_queries(
             statement = statement.where(Query.dialect == dialect)
         if db_alias:
             statement = statement.where(Query.db_alias == db_alias)
+        if user_id:
+            statement = statement.where(Query.user_id == user_id)
+        if date_from:
+            statement = statement.where(Query.first_seen_at >= date_from)
+        if date_to:
+            statement = statement.where(Query.first_seen_at <= date_to)
             
         queries = session.exec(statement).all()
         return {"data": queries}
+
 
 @router.get("/queries/{query_hash}")
 def get_query_details(
@@ -62,10 +74,19 @@ def get_query_details(
             if "lineage" in includes:
                 lineage = session.exec(select(LineageColumn).where(LineageColumn.query_hash == query_hash)).all()
                 result["lineage"] = [l.dict() for l in lineage]
+                
+                # Synthesis for Visual Observability: Generate Mermaid.js graph string
+                # Format: graph LR; TableA --> Column1; TableA --> Column2;
+                mermaid_lines = ["graph LR"]
+                for l in lineage:
+                    mermaid_lines.append(f"  {l.asset_name} --> {l.column_name}")
+                result["mermaid_lineage"] = "\n".join(mermaid_lines)
+                
             if "suggestions" in includes:
                 suggestions = session.exec(select(QuerySuggestion).where(QuerySuggestion.query_hash == query_hash)).first()
                 result["suggestions"] = suggestions.dict() if suggestions else None
         return result
+
 
 @router.post("/telemetry/assets")
 def push_assets(

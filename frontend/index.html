@@ -14,6 +14,13 @@
     <script src="https://unpkg.com/feather-icons"></script>
     
     <link rel="stylesheet" href="style.css?v=1.0.2-master-detail">
+    
+    <!-- Mermaid.js for Visual Lineage -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' });
+    </script>
+
 </head>
 <body>
     <div class="app-shell">
@@ -43,6 +50,10 @@
                     Cold Archive
                 </a>
                 -->
+                <a href="#" class="nav-link" id="nav-sentry" onclick="showSentry()">
+                    <i data-feather="shield"></i>
+                    Neural Sentry
+                </a>
             </nav>
             
             <div class="sidebar-footer">
@@ -89,7 +100,7 @@
                 </button>
             </header>
 
-            <!-- High-Density Intelligence Table -->
+            <!-- Neural Query Registry -->
             <section class="animate-up">
                 <table class="neural-table">
                     <thead>
@@ -113,7 +124,70 @@
                     </div>
                 </div>
             </section>
+
+            <!-- 3. Neural Sentry Hub (v6.1) -->
+            <section id="sentry-view" style="display: none;" class="animate-up">
+                <div class="hero-stats" style="grid-template-columns: 1fr 1fr 1fr; margin-bottom: 2rem;">
+                    <div class="glass-tile" style="border-color: var(--neon-cyan)">
+                        <div class="tile-label">Sentry Status</div>
+                        <div class="tile-value" id="sentry-health" style="color: var(--neon-emerald)">PROTECTED</div>
+                    </div>
+                    <div class="glass-tile" style="border-color: var(--neon-purple)">
+                        <div class="tile-label">Malware Detected</div>
+                        <div class="tile-value" id="sentry-threats">0</div>
+                    </div>
+                    <div class="glass-tile" style="border-color: var(--neon-cyan)">
+                        <div class="tile-label">Scope</div>
+                        <div class="tile-value" style="font-size: 1.2rem; margin-top: 0.5rem;">ENTIRE_HOST</div>
+                    </div>
+                </div>
+
+                <div class="glass-tile" style="margin-bottom: 2rem; min-height: 200px;">
+                    <h3 style="font-size: 0.85rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i data-feather="activity" style="width: 14px; color: var(--neon-cyan)"></i>
+                        Neural Traffic Map (Live)
+                    </h3>
+                    <div id="traffic-map" class="mermaid" style="text-align: center;">
+                        graph LR; Sentry[Host Interface] --- Sniffing...
+                    </div>
+                </div>
+
+                <!-- Sub-Navigation for Forensic Triage -->
+                <div id="sentry-governance-nav" style="margin-bottom: 2rem;">
+                    <button class="nav-tab-btn active-cyan" id="tab-global" onclick="switchSentryTab('all')">Global Traffic</button>
+                    <button class="nav-tab-btn" id="tab-local" onclick="switchSentryTab('LOCAL_LEAK')">Local Governance (DLP)</button>
+                </div>
+
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="font-size: 0.85rem; color: var(--text-muted);">THREAT REGISTRY</h3>
+                    <div class="pagination" style="margin: 0;">
+                        <span id="sentry-page-indicator" style="font-size: 0.75rem;">Page 1</span>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="page-btn" id="sentry-prev" onclick="changeSentryPage(-1)"><i data-feather="chevron-left" style="width: 14px;"></i></button>
+                            <button class="page-btn" id="sentry-next" onclick="changeSentryPage(1)"><i data-feather="chevron-right" style="width: 14px;"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <table class="neural-table">
+                    <thead>
+                        <tr>
+                            <th>Protocol</th>
+                            <th>Source</th>
+                            <th>Type</th>
+                            <th>Summary</th>
+                            <th>Risk Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sentry-tbody">
+                        <!-- Network threats injected here -->
+                    </tbody>
+                </table>
+            </section>
+
         </main>
+
 
         <!-- 3. Cinematic Detail Drawer (Side-Panel) -->
         <aside id="detail-drawer" class="detail-drawer">
@@ -121,7 +195,7 @@
                 <i data-feather="x"></i>
             </div>
             <div id="drawer-content">
-                <p style="color: var(--text-muted); padding: 2rem;">Select a query to reveal ASTRON intelligence.</p>
+                <p style="color: var(--text-muted); padding: 2rem;">Select a query to reveal ASTRON insights.</p>
             </div>
         </aside>
 
@@ -135,7 +209,7 @@
                 <i data-feather="terminal" style="color: var(--neon-cyan)"></i>
                 <span style="letter-spacing: 0.1em;">ASTRON MONITOR</span>
             </div>
-            <p style="color: var(--text-muted); margin-bottom: 2.25rem; line-height: 1.6;">Access your Decentralized Query Mesh and Advanced Intelligence.</p>
+            <p style="color: var(--text-muted); margin-bottom: 2.25rem; line-height: 1.6;">Access your Decentralized Query Mesh and Neural Analysis Hub.</p>
             <div class="search-wrapper" style="margin-bottom: 1.25rem;">
                 <input type="text" id="login-tenant" placeholder="Enterprise ID (e.g. acme-1)">
             </div>
@@ -174,7 +248,27 @@
     <script src="app.js"></script>
     <script>
         feather.replace();
-        function showDashboard() { location.reload(); }
+        function showDashboard() {
+            document.querySelector('.hero-stats').style.display = 'grid';
+            document.querySelector('.filter-bar').style.display = 'flex';
+            document.querySelector('.animate-up:not(#sentry-view)').style.display = 'block';
+            document.getElementById('sentry-view').style.display = 'none';
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector('a[onclick="showDashboard()"]').classList.add('active');
+        }
+
+        async function showSentry() {
+            document.querySelector('.hero-stats').style.display = 'none';
+            document.querySelector('.filter-bar').style.display = 'none';
+            document.querySelector('.animate-up:not(#sentry-view)').style.display = 'none';
+            document.getElementById('sentry-view').style.display = 'block';
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.getElementById('nav-sentry').classList.add('active');
+            
+            await fetchNetworkStats();
+            await fetchNetworkThreats();
+        }
+
     </script>
 </body>
 </html>
