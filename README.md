@@ -1,6 +1,8 @@
-# SQL Query Intelligence Platform (Next-Gen)
+# ASTRON | SQL Query Intelligence Platform
 
-A production-grade, multi-tenant SQL observability and lineage platform. Designed to scale from 10 queries to 10M+ queries per day using a distributed telemetry pipeline.
+> [!NOTE]
+> **Project Status: WIP (Pet Project)**
+> ASTRON is an active experimental project focused on high-performance SQL observability and sidecar security architectures. While the core telemetry mesh is operational, features like "Active Mitigation" and "Auto-Scaling" are currently under development.
 
 ---
 
