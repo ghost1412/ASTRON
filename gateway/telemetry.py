@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlmodel import select
+import sqlglot
 
 from core.db_manager import DatabaseManager
 from core.models import Query, LineageColumn, QuerySuggestion, CachedAsset
@@ -76,7 +77,6 @@ def get_query_details(
                 result["lineage"] = [l.dict() for l in lineage]
                 
                 # Synthesis for Visual Observability: Generate Mermaid.js graph string
-                # Format: graph LR; TableA --> Column1; TableA --> Column2;
                 mermaid_lines = ["graph LR"]
                 for l in lineage:
                     mermaid_lines.append(f"  {l.asset_name} --> {l.column_name}")
@@ -103,19 +103,65 @@ def push_queries(
     telemetry_data: dict,
     tenant_id: str = Depends(get_current_tenant)
 ):
-    """Ingest query metrics with Fair-Share Chunking."""
+    """Ingest query metrics with Multi-Statement Recognition & Fair-Share Chunking."""
     q = get_tenant_queue(tenant_id)
     
     samples = telemetry_data.get("samples", [])
+    
+    # v8.0 Multi-Statement Splitting: Treating SQL as grammar, not strings
+    refined_samples = []
+    for s in samples:
+        q_text = s.get("query_text", "")
+        dialect = telemetry_data.get("dialect", "postgres")
+        
+        try:
+            statements = sqlglot.split_queries(q_text, read=dialect)
+            if len(statements) > 1:
+                for stmt in statements:
+                    if stmt.strip():
+                        refined_samples.append({**s, "query_text": stmt.strip()})
+            else:
+                refined_samples.append(s)
+        except Exception:
+            refined_samples.append(s)
+            
+    samples = refined_samples
+
     if len(samples) > CHUNK_SIZE:
-        # 1. Fair-Share Chunking: Break massive ingests into interleaved tasks
-        # This prevents a single 3M query ingest from blocking a shard lane for hours.
         for i in range(0, len(samples), CHUNK_SIZE):
             chunk = samples[i : i + CHUNK_SIZE]
             payload_chunk = {**telemetry_data, "samples": chunk}
             q.enqueue(QueryProcessor.handle_telemetry, tenant_id, payload_chunk)
     else:
-        # 2. Standard Dispatch
-        q.enqueue(QueryProcessor.handle_telemetry, tenant_id, telemetry_data)
+        q.enqueue(QueryProcessor.handle_telemetry, tenant_id, {**telemetry_data, "samples": samples})
         
-    return {"status": "accepted", "job_id": "queued", "shard": q.name}
+    return {"status": "accepted", "job_id": "queued", "count": len(samples)}
+
+@router.post("/telemetry/queries/file")
+async def push_query_file(
+    file: UploadFile = File(...),
+    dialect: str = "postgres",
+    db_alias: str = "default",
+    tenant_id: str = Depends(get_current_tenant)
+):
+    """Omni-Ingest Pipeline: Ingests a .sql file, splits statements, and dispatches to the work mesh."""
+    content = await file.read()
+    sql_text = content.decode("utf-8")
+    
+    try:
+        # v8.0 split_queries handle semicolons and multi-line formatting natively
+        statements = sqlglot.split_queries(sql_text, read=dialect)
+        samples = [
+            {"query_text": stmt.strip(), "calls_delta": 1, "total_exec_time_ms_delta": 0} 
+            for stmt in statements if stmt.strip()
+        ]
+        
+        telemetry_data = {
+            "dialect": dialect,
+            "db_alias": db_alias,
+            "samples": samples
+        }
+        
+        return push_queries(telemetry_data, tenant_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse SQL file: {str(e)}")

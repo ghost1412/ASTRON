@@ -2,6 +2,7 @@ fastapi
 uvicorn
 sqlmodel
 sqlglot
+python-multipart
 pydantic-settings
 python-jose[cryptography]
 passlib[bcrypt]

@@ -3,6 +3,7 @@ from sqlglot import exp
 from typing import List, Tuple
 from core.models import LineageColumn
 from core.db_manager import DatabaseManager
+from sqlglot.optimizer.qualify import qualify
 
 class BaseLineageExtractor:
     """Interface for dialect-specific extraction logic."""
@@ -11,29 +12,40 @@ class BaseLineageExtractor:
 
     def extract(self, sql: str) -> List[Tuple[str, str, str]]:
         try:
+            # Step 1: Basic Parse
             parsed = sqlglot.parse_one(sql, read=self.dialect)
+            
+            # Step 2: Full AST Qualification (Resolves aliases, CTEs, and expands Stars)
+            # This is the 'Grammar-First' fix for nested queries and aliases.
+            qualified = qualify(parsed)
         except Exception as e:
-            print(f"Error parsing SQL for {self.dialect}: {e}")
-            return []
-        return self._run_extraction(parsed)
+            # Fallback for complex expressions that qualify might miss without a full schema context
+            try:
+                qualified = sqlglot.parse_one(sql, read=self.dialect)
+            except:
+                return []
+        
+        return self._run_extraction(qualified)
 
     def _run_extraction(self, expression: exp.Expression) -> List[Tuple[str, str, str]]:
         raise NotImplementedError()
 
 class GenericLineageExtractor(BaseLineageExtractor):
-    """Fallback extractor using standard AST traversal."""
+    """Smarter extractor using qualified AST traversal."""
     def _run_extraction(self, parsed: exp.Expression) -> List[Tuple[str, str, str]]:
         lineage = []
+        
+        # We walk the AST and specifically pull Columns that have been qualified with their source tables
         for expression in parsed.find_all(exp.Column):
             column_name = expression.name
-            table_name = expression.table or "unknown"
+            table_name = expression.table
             
-            # Auto-resolve single table
-            tables_in_query = [t.name for t in parsed.find_all(exp.Table)]
-            if table_name == "unknown" and len(tables_in_query) == 1:
-                table_name = tables_in_query[0]
+            if not table_name:
+                # Fallback: If qualification was partial, guess the only table in context
+                tables_in_query = [t.name for t in parsed.find_all(exp.Table)]
+                table_name = tables_in_query[0] if len(tables_in_query) == 1 else "unknown"
             
-            # Deep clause detection
+            # Deep clause detection focusing on structural context
             current = expression
             clause_type = "UNKNOWN"
             while current:
@@ -41,13 +53,15 @@ class GenericLineageExtractor(BaseLineageExtractor):
                 if isinstance(current, exp.Select): clause_type = "SELECT"
                 if isinstance(current, exp.Join): clause_type = "JOIN"; break
                 if isinstance(current, exp.Order): clause_type = "ORDER BY"; break
+                if isinstance(current, exp.Group): clause_type = "GROUP BY"; break
                 current = current.parent
             
             lineage.append((table_name, column_name, clause_type or "SELECT"))
-        return lineage
+            
+        return list(set(lineage)) # Return unique (Table, Column, Clause) tuples
 
 class PostgresLineageExtractor(GenericLineageExtractor):
-    """Postgres-specific overrides (e.g. handling search_path or schema resolution)."""
+    """Postgres-specific overrides."""
     pass
 
 class LineageFactory:
@@ -64,10 +78,8 @@ class LineageFactory:
 import re
 
 def extract_columns_from_ddl(ddl: str) -> List[str]:
-    """Extract column names from simple CREATE TABLE DDL."""
-    # Matches words followed by a type definition, typically inside parentheses
-    # Very simplistic but effective for standard SQL challenge DDLs
-    # Example: "id INT", "name VARCHAR(255)"
+    """Extract column names from CREATE TABLE DDL."""
+    # Matches words at the start of a line inside a column list
     cols = re.findall(r'^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+[a-zA-Z]', ddl, re.MULTILINE)
     return [c.lower() for c in cols]
 
@@ -80,7 +92,6 @@ def process_lineage(tenant_id: str, query_hash: str, sql: str, dialect: str):
     with DatabaseManager.get_session(tenant_id) as session:
         assets = session.exec(select(CachedAsset)).all()
         for asset in assets:
-            # Context-Aware Extraction: Parse columns from the provided DDL
             schema_map[asset.asset_name] = extract_columns_from_ddl(asset.schema_ddl)
 
     # 2. Extract Lineage using the Strategy-aware Factory
@@ -106,4 +117,3 @@ def process_lineage(tenant_id: str, query_hash: str, sql: str, dialect: str):
             )
             session.add(lineage_entry)
         session.commit()
-
